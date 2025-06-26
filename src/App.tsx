@@ -14,6 +14,7 @@ import ViewScansPage from './pages/ViewScansPage';
 
 import { ScannerProvider } from './contexts/ScannerContext';
 import PrivateRoute from './contexts/PrivateRoute';
+import PostReceiptPage from './pages/PostReceiptPage';
 
 const App = () => {
   const [userId, setUserId] = useState<string | null>(null);
@@ -98,7 +99,16 @@ const App = () => {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/post-receipt"
+            element={
+              <PrivateRoute userId={userId}>
+                <PostReceiptPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
         </Route>
+        
       </Routes>
     </BrowserRouter>
   );

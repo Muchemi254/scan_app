@@ -35,9 +35,11 @@ const Layout = () => {
             <div className="flex space-x-8">
               <NavLink to="/dashboard" className={navLinkStyle}>Dashboard</NavLink>
               <NavLink to="/scanner" className={navLinkStyle}>Scan Receipts</NavLink>
+              <NavLink to="/post-receipt" className={navLinkStyle}>Post Reciept</NavLink>
               <NavLink to="/receipts" className={navLinkStyle}>View Scanned Receipts</NavLink>
               <NavLink to="/review" className={navLinkStyle}>Review</NavLink>
               <NavLink to="/export" className={navLinkStyle}>Export</NavLink>
+              
             </div>
             <div className="flex items-center gap-4">
               {isLoggedIn ? (
