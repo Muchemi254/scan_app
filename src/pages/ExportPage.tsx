@@ -5,7 +5,13 @@ import { db } from '../services/firebase';
 import { exportToExcel, exportToPDF } from '../services/export';
 import { generateSummary } from '../services/gemini';
 
-const ExportPage = ({ userId }: { userId: string | null }) => {
+interface ExportPageProps {
+  userId: string | null;
+  customReceipts?: any[];
+  onClose?: () => void;
+}
+
+const ExportPage = ({ userId, customReceipts, onClose }: ExportPageProps) => {
   const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState('');
@@ -21,6 +27,7 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
     'category',
     'kraPin',
     'cuInvoice',
+    'status',
   ];
 
   const fetchReceipts = async () => {
@@ -31,7 +38,6 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
       const snapshot = await getDocs(collection(db, `users/${userId}/receipts`));
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Optional: Filter by date range
       const filtered = data.filter(receipt => {
         const date = new Date(receipt.receiptDate);
         const afterStart = dateRange.start ? date >= new Date(dateRange.start) : true;
@@ -47,6 +53,14 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
     }
   };
 
+  useEffect(() => {
+    if (customReceipts) {
+      setReceipts(customReceipts);
+    } else {
+      fetchReceipts();
+    }
+  }, [userId, dateRange.start, dateRange.end, customReceipts]);
+
   const flattenReceipts = () => {
     const rows: any[] = [];
 
@@ -57,16 +71,24 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
 
       if (Array.isArray(receipt.items)) {
         receipt.items.forEach((item: any) => {
+          const quantity = parseFloat(item.quantity) || 0;
+          const price = parseFloat(item.price) || 0;
+          const tax = parseFloat(item.tax) || 0;
+          const isZeroRated = item.isZeroRated === true;
+          const itemTotal = quantity * (price + tax);
+
           rows.push({
             ...base,
-            itemName: item.name || '',
-            itemQuantity: item.quantity || '',
-            itemPrice: item.price || '',
-            itemTotal: item.quantity && item.price ? Number(item.quantity) * Number(item.price) : '',
+            'Item Name': item.name || '',
+            'Quantity': quantity,
+            'Price': Number(price.toFixed(3)),
+            'Tax': Number(tax.toFixed(3)),
+            'Zero Rated': isZeroRated,
+            'Total': Number(itemTotal.toFixed(3)),
           });
         });
       } else {
-        rows.push({ ...base, itemName: '', itemQuantity: '', itemPrice: '', itemTotal: '' });
+        rows.push({ ...base, 'Item Name': '', 'Quantity': '', 'Price': '', 'Tax': '', 'Zero Rated': '', 'Total': '' });
       }
     });
 
@@ -76,11 +98,13 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
   const handleExportExcel = () => {
     const rows = flattenReceipts();
     exportToExcel(rows, `${fileName}.xlsx`);
+    onClose?.();
   };
 
   const handleExportPDF = () => {
     const rows = flattenReceipts();
     exportToPDF(rows, `${fileName}.pdf`);
+    onClose?.();
   };
 
   const handleGenerateSummary = async () => {
@@ -97,13 +121,36 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
     }
   };
 
-  useEffect(() => {
-    fetchReceipts();
-  }, [userId, dateRange.start, dateRange.end]);
-
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-4">Export Receipts</h2>
+    <div className="bg-white p-6 rounded-lg">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Export Receipts</h2>
+        {onClose && (
+          <button onClick={onClose} className="text-gray-500 hover:text-black">
+            ✕
+          </button>
+        )}
+      </div>
+
+      {!customReceipts && (
+        <div className="mb-6">
+          <h3 className="font-semibold mb-2">Date Range Filter</h3>
+          <div className="flex gap-4">
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              className="border p-2 rounded"
+            />
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              className="border p-2 rounded"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="mb-4">
         <label className="block mb-1 font-medium">Export File Name</label>
@@ -114,24 +161,6 @@ const ExportPage = ({ userId }: { userId: string | null }) => {
           onChange={(e) => setFileName(e.target.value)}
           className="border p-2 rounded w-full max-w-md"
         />
-      </div>
-
-      <div className="mb-6">
-        <h3 className="font-semibold mb-2">Date Range Filter</h3>
-        <div className="flex gap-4">
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-            className="border p-2 rounded"
-          />
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-            className="border p-2 rounded"
-          />
-        </div>
       </div>
 
       <div className="flex flex-wrap gap-4 mb-6">

@@ -20,25 +20,16 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
     setError,
     updateLog,
     clearAll,
-  
   } = useScannerContext();
 
   const isProcessing = logs.some(l => l.status === 'processing');
-
   const [batchTitle, setBatchTitle] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     const originalTitle = document.title;
-    if (isProcessing) {
-      document.title = `⏳ Processing... - ${originalTitle}`;
-    } else {
-      document.title = originalTitle;
-    }
-
-    return () => {
-      document.title = originalTitle;
-    };
+    document.title = isProcessing ? `⏳ Processing... - ${originalTitle}` : originalTitle;
+    return () => { document.title = originalTitle; };
   }, [isProcessing]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,31 +43,30 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
   };
 
   const isMissing = (val: any) =>
-    val === undefined ||
-    val === null ||
-    val === 'N/A' ||
-    val === '' ||
-    (typeof val === 'string' && val.trim() === '');
+    val === undefined || val === null || val === 'N/A' || val === '' || (typeof val === 'string' && val.trim() === '');
 
-  const hasMissingFields = (obj: any): boolean => {
-    for (const key in obj) {
-      if (key === 'items') continue;
-      if (isMissing(obj[key])) return true;
+  const hasMissingFields = (data: any): boolean => {
+    const requiredFields = ['supplier', 'receiptDate', 'totalAmount', 'taxAmount', 'category', 'invoiceNumber', 'kraPin', 'cuInvoice'];
+    for (const key of requiredFields) {
+      if (isMissing(data[key])) return true;
     }
 
-    const items = obj.items;
+    const items = data.items;
     if (!Array.isArray(items) || items.length === 0) return true;
 
     for (const item of items) {
-      if (isMissing(item.name) || isMissing(item.quantity) || isMissing(item.price)) {
+      if (
+        isMissing(item.name) ||
+        isMissing(item.quantity) ||
+        isMissing(item.price) ||
+        (!item.isZeroRated && isMissing(item.tax))
+      ) {
         return true;
       }
     }
 
     return false;
   };
-
-  const isMissingCriticalFields = (data: any) => hasMissingFields(data);
 
   const processImages = async () => {
     if (!userId || images.length === 0 || !batchTitle.trim()) {
@@ -104,7 +94,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
           timestamp: new Date().toISOString(),
         };
 
-        const hasMissing = isMissingCriticalFields(dataToSave);
+        const hasMissing = hasMissingFields(dataToSave);
 
         await saveReceipt(userId, {
           ...dataToSave,
@@ -159,22 +149,18 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
         )}
       </div>
 
-      {/* Batch Title Input */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          🏷️ Batch Title
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">🏷️ Batch Title</label>
         <input
           type="text"
           value={batchTitle}
           onChange={(e) => setBatchTitle(e.target.value)}
           placeholder="e.g. June Market Run"
-          className="w-full px-4 py-2 border rounded focus:outline-none focus:ring focus:border-blue-300"
+          className="w-full px-4 py-2 border rounded"
           disabled={loading}
         />
       </div>
 
-      {/* Status Banner */}
       {isProcessing && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
           <div className="flex items-center">
@@ -231,14 +217,10 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
               <span className="truncate flex-1 mr-2">{log.name}</span>
               <span
                 className={`whitespace-nowrap flex items-center ${
-                  log.status === 'done'
-                    ? 'text-green-600'
-                    : log.status === 'needs_review'
-                    ? 'text-yellow-600'
-                    : log.status === 'failed'
-                    ? 'text-red-600'
-                    : log.status === 'processing'
-                    ? 'text-blue-600'
+                  log.status === 'done' ? 'text-green-600'
+                    : log.status === 'needs_review' ? 'text-yellow-600'
+                    : log.status === 'failed' ? 'text-red-600'
+                    : log.status === 'processing' ? 'text-blue-600'
                     : 'text-gray-600'
                 }`}
               >
@@ -260,7 +242,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
         <div className="mt-4 text-right">
           <button
             onClick={retryFailed}
-            className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition"
+            className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
           >
             🔁 Retry Failed ({failedImages.length})
           </button>
@@ -269,7 +251,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
 
       {!loading && logs.length > 0 && failedImages.length === 0 && logs.every(l => l.status !== 'processing') && (
         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
-          ✅ All images processed successfully! 
+          ✅ All images processed successfully!
           <button
             onClick={() => navigate('/receipts')}
             className="ml-2 text-green-600 underline hover:text-green-800"
@@ -278,7 +260,6 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
           </button>
         </div>
       )}
-      
     </div>
   );
 };

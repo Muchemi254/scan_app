@@ -1,4 +1,3 @@
-// src/App.tsx
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { initAuth } from './services/firebase';
@@ -14,6 +13,7 @@ import Layout from './components/Layout';
 import ViewScansPage from './pages/ViewScansPage';
 
 import { ScannerProvider } from './contexts/ScannerContext';
+import PrivateRoute from './contexts/PrivateRoute';
 
 const App = () => {
   const [userId, setUserId] = useState<string | null>(null);
@@ -34,23 +34,68 @@ const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout />}>
-        <Route path="/" element={<DashboardPage userId={null} />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/dashboard" element={<DashboardPage userId={userId} />} />
-          <Route path="/receipts/:id" element={<ReceiptDetailsPage userId={userId} />} />
-          <Route path="/review" element={<ReviewPage userId={userId} />} />
-          <Route path="/export" element={<ExportPage userId={userId} />} />
-          <Route path="/receipts" element={<ViewScansPage userId={userId} />} />
+        {/* Public routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-          {/* 🔸 Wrap ScannerPage with ScannerProvider */}
+        {/* Private routes */}
+        <Route element={<Layout />}>
+          <Route
+            path="/"
+            element={
+              <PrivateRoute userId={userId}>
+                <DashboardPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute userId={userId}>
+                <DashboardPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/scanner"
             element={
-              <ScannerProvider>
-                <ScannerPage userId={userId} />
-              </ScannerProvider>
+              <PrivateRoute userId={userId}>
+                <ScannerProvider>
+                  <ScannerPage userId={userId} />
+                </ScannerProvider>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/receipts"
+            element={
+              <PrivateRoute userId={userId}>
+                <ViewScansPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/receipts/:id"
+            element={
+              <PrivateRoute userId={userId}>
+                <ReceiptDetailsPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/review"
+            element={
+              <PrivateRoute userId={userId}>
+                <ReviewPage userId={userId} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/export"
+            element={
+              <PrivateRoute userId={userId}>
+                <ExportPage userId={userId} />
+              </PrivateRoute>
             }
           />
         </Route>
