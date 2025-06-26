@@ -25,61 +25,84 @@ const DashboardPage = ({ userId }: { userId: string | null }) => {
   const [supplierTotals, setSupplierTotals] = useState<Record<string, number>>({});
   const [averageValue, setAverageValue] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const [totalSpend, setTotalSpend] = useState(0);
+  const [subtotal, setSubtotal] = useState(0);     // Before tax
+const [taxTotal, setTaxTotal] = useState(0);     // Tax only
+
 
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!userId) return;
-
+  
     const ref = collection(db, `users/${userId}/receipts`);
-
+  
     const unsubscribe = onSnapshot(ref, snapshot => {
       const all = snapshot.docs.map(doc => doc.data());
       const total = all.length;
       const processed = all.filter(r => r.status === 'processed').length;
       const needsReview = all.filter(r => r.status === 'needs_review').length;
-
+  
       const batches = Array.from(
         new Set(
           all.map(r => (r.batchTitle || '').trim()).filter(title => title.length > 0)
         )
       );
-
+  
       const categoryMap: Record<string, number> = {};
       const supplierMap: Record<string, number> = {};
-      let totalValue = 0;
+      let subtotal = 0; // before tax
+      let taxTotal = 0; // only tax
+      let totalSpend = 0; // subtotal + tax
       let count = 0;
-
+  
       all.forEach((r: any) => {
-        const sum = Array.isArray(r.items)
-  ? r.items.reduce((acc: number, item: any) => {
-      const price = parseFloat(item.price || '0');
-      const qty = Number(item.quantity || 0);
-      return acc + price * qty;
-    }, 0)
-  : 0;
-
-        totalValue += sum;
+        let receiptSubtotal = 0;
+        let receiptTax = 0;
+  
+        if (Array.isArray(r.items)) {
+          r.items.forEach((item: any) => {
+            const price = parseFloat(item.price || '0');
+            const qty = Number(item.quantity || 0);
+            const tax = parseFloat(item.tax || '0');
+  
+            const itemSubtotal = price * qty;
+            const itemTax = tax * qty;
+  
+            receiptSubtotal += itemSubtotal;
+            receiptTax += itemTax;
+          });
+        }
+  
+        const total = receiptSubtotal + receiptTax;
+  
+        subtotal += receiptSubtotal;
+        taxTotal += receiptTax;
+        totalSpend += total;
         count++;
-
+  
         const category = r.category || 'Uncategorized';
-        categoryMap[category] = (categoryMap[category] || 0) + sum;
-
+        categoryMap[category] = (categoryMap[category] || 0) + total;
+  
         const supplier = r.supplier || 'Unknown';
-        supplierMap[supplier] = (supplierMap[supplier] || 0) + sum;
+        supplierMap[supplier] = (supplierMap[supplier] || 0) + total;
       });
-
+  
       setTotalCount(total);
       setProcessedCount(processed);
       setReviewCount(needsReview);
       setBatchTitles(batches);
       setCategoryTotals(categoryMap);
       setSupplierTotals(supplierMap);
-      setAverageValue(count ? totalValue / count : 0);
+      setAverageValue(count ? totalSpend / count : 0);
+      setTotalSpend(totalSpend); // 👈 include this in your component state
+      setTaxTotal(taxTotal);     // 👈 new state: total tax
+      setSubtotal(subtotal);     // 👈 new state: total before tax
     });
-
+  
     return () => unsubscribe();
   }, [userId]);
+  
 
   const cards = [
     {
@@ -125,10 +148,34 @@ const DashboardPage = ({ userId }: { userId: string | null }) => {
             <p className="text-3xl font-bold">{card.count}</p>
           </div>
         ))}
+
+        {/* Average value */}
+        {/* Total spend */}
+        <div className="bg-white p-6 rounded shadow">
+  <h4 className="text-lg font-semibold mb-2">Total Spend (Incl. Tax)</h4>
+  <p className="text-3xl font-bold text-green-700">
+    KES {totalSpend.toFixed(2)}
+  </p>
+</div>
+
+<div className="bg-white p-6 rounded shadow">
+  <h4 className="text-lg font-semibold mb-2">Excluding VAT</h4>
+  <p className="text-2xl font-medium text-blue-700">
+    KES {subtotal.toFixed(2)}
+  </p>
+</div>
+
+<div className="bg-white p-6 rounded shadow">
+  <h4 className="text-lg font-semibold mb-2">VAT</h4>
+  <p className="text-2xl font-medium text-blue-700">
+    KES {taxTotal.toFixed(2)}
+  </p>
+</div>
       </div>
+      
 
       {/* Charts and Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Doughnut chart */}
         <div className="bg-white p-6 rounded shadow">
           <h4 className="text-md font-semibold mb-4">Receipt Status</h4>
@@ -147,22 +194,64 @@ const DashboardPage = ({ userId }: { userId: string | null }) => {
         </div>
 
         {/* Bar chart for categories */}
-        <div className="bg-white p-6 rounded shadow">
-          <h4 className="text-lg font-semibold mb-4">Spend by Category</h4>
-          <Bar
-            data={{
-              labels: Object.keys(categoryTotals),
-              datasets: [
-                {
-                  label: 'KES',
-                  data: Object.values(categoryTotals),
-                  backgroundColor: '#6366f1',
-                },
-              ],
-            }}
-            options={{ indexAxis: 'y' }}
-          />
-        </div>
+        <div
+  className="bg-white p-6 rounded shadow"
+  style={{
+    height: `${Object.keys(categoryTotals).length * 40 + 80}px`, // 40px per bar + top padding
+  }}
+>
+  <h4 className="text-md font-semibold mb-4">Spend by Category</h4>
+  <Bar
+    data={{
+      labels: Object.keys(categoryTotals),
+      datasets: [
+        {
+          label: 'KES',
+          data: Object.values(categoryTotals),
+          backgroundColor: '#6366f1',
+          borderRadius: 4,
+        },
+      ],
+    }}
+    options={{
+      indexAxis: 'y',
+      maintainAspectRatio: false,
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => `KES ${context.formattedValue}`,
+          },
+        },
+      },
+      layout: {
+        padding: {
+          top: 10,
+          bottom: 10,
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            callback: value =>
+              Number(value).toLocaleString('en-KE', {
+                minimumFractionDigits: 0,
+              }),
+          },
+        },
+        y: {
+          ticks: {
+            font: {
+              size: 12,
+            },
+            autoSkip: false,
+          },
+        },
+      },
+    }}
+  />
+</div>
 
         {/* Top 5 suppliers */}
         <div className="bg-white p-6 rounded shadow col-span-1 md:col-span-2">
@@ -181,14 +270,6 @@ const DashboardPage = ({ userId }: { userId: string | null }) => {
                 </li>
               ))}
           </ul>
-        </div>
-
-        {/* Average value */}
-        <div className="bg-white p-6 rounded shadow">
-          <h4 className="text-lg font-semibold mb-2">Average Receipt Value</h4>
-          <p className="text-3xl font-bold text-green-700">
-            KES {averageValue.toFixed(2)}
-          </p>
         </div>
       </div>
 
