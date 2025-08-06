@@ -13,24 +13,36 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
     failedImages,
     loading,
     error,
+    batchTitle,
     setImages,
     setLogs,
     setFailedImages,
     setLoading,
     setError,
+    setBatchTitle,
     updateLog,
     clearAll,
+    isProcessing,
+    hasActiveSession,
   } = useScannerContext();
-
-  const isProcessing = logs.some(l => l.status === 'processing');
-  const [batchTitle, setBatchTitle] = useState('');
   const navigate = useNavigate();
+
+  // Check if there are any incomplete logs from previous sessions
+  const hasIncompleteWork = hasActiveSession;
 
   useEffect(() => {
     const originalTitle = document.title;
     document.title = isProcessing ? `⏳ Processing... - ${originalTitle}` : originalTitle;
     return () => { document.title = originalTitle; };
   }, [isProcessing]);
+
+  // Clean up stale pending logs on component mount
+  useEffect(() => {
+    if (hasIncompleteWork && images.length === 0) {
+      // Clear stale logs if no images are selected
+      setLogs([]);
+    }
+  }, []);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -69,7 +81,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
   };
 
   const processImages = async () => {
-    if (!userId || images.length === 0 || !batchTitle.trim()) {
+    if (!userId || images.length === 0 || !batchTitle?.trim()) {
       alert("Please enter a batch title before processing.");
       return;
     }
@@ -90,7 +102,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
         const dataToSave = {
           ...extractedData,
           imageUrl,
-          batchTitle: batchTitle.trim(),
+          batchTitle: batchTitle?.trim() || '',
           timestamp: new Date().toISOString(),
         };
 
@@ -130,9 +142,14 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all processing data?')) {
       clearAll();
-      setBatchTitle('');
     }
   };
+
+  // Check if processing is truly complete
+  const isProcessingComplete = logs.length > 0 && 
+    logs.every(log => log.status === 'done' || log.status === 'needs_review' || log.status === 'failed') &&
+    !loading && 
+    failedImages.length === 0;
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-md max-w-2xl mx-auto mt-8">
@@ -153,7 +170,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
         <label className="block text-sm font-medium text-gray-700 mb-1">🏷️ Batch Title</label>
         <input
           type="text"
-          value={batchTitle}
+          value={batchTitle || ''}
           onChange={(e) => setBatchTitle(e.target.value)}
           placeholder="e.g. June Market Run"
           className="w-full px-4 py-2 border rounded"
@@ -187,9 +204,9 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
 
       <button
         onClick={processImages}
-        disabled={loading || !userId || images.length === 0 || !batchTitle.trim()}
+        disabled={loading || !userId || images.length === 0 || !batchTitle?.trim()}
         className={`w-full py-2 px-4 rounded-md text-white font-medium text-lg transition
-                    ${loading || !userId || images.length === 0 || !batchTitle.trim()
+                    ${loading || !userId || images.length === 0 || !batchTitle?.trim()
                       ? 'bg-indigo-300 cursor-not-allowed'
                       : 'bg-indigo-600 hover:bg-indigo-700'}`}
       >
@@ -249,7 +266,7 @@ const ScannerPage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {!loading && logs.length > 0 && failedImages.length === 0 && logs.every(l => l.status !== 'processing') && (
+      {isProcessingComplete && (
         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
           ✅ All images processed successfully!
           <button

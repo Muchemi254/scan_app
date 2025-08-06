@@ -34,8 +34,9 @@ const ViewScansPage = ({ userId }: { userId: string | null }) => {
     dateEnd: '',
   });
 
-  const uniqueSuppliers = [...new Set(receipts.map(r => r.supplier).filter(Boolean))];
-  const uniqueCategories = [...new Set(receipts.map(r => r.category).filter(Boolean))];
+const uniqueSuppliers = [...new Set(receipts.map(r => r.supplier).filter(Boolean))].sort();
+const uniqueCategories = [...new Set(receipts.map(r => r.category).filter(Boolean))].sort();
+
 
   useEffect(() => {
     if (!userId) return;
