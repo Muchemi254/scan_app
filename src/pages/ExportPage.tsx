@@ -22,8 +22,6 @@ const ExportPage = ({ userId, customReceipts, onClose }: ExportPageProps) => {
     'receiptDate',
     'supplier',
     'invoiceNumber',
-    'totalAmount',
-    'taxAmount',
     'category',
     'kraPin',
     'cuInvoice',

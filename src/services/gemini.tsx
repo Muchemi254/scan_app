@@ -8,6 +8,37 @@ import type { ResponseSchema, ReceiptData, GeminiResponse, ReceiptItem } from '.
  * @throws Error if parsing fails
  */
 
+const normalizeDateStrict = (raw: string): string => {
+  if (!raw || raw === 'N/A') {
+    throw new Error('Missing receipt date');
+  }
+
+  // Already correct
+  if (/^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/.test(raw)) {
+    return raw;
+  }
+
+  // Allow dash variant → normalize to slash
+  const m = raw.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (!m) {
+    throw new Error(`Invalid date format: ${raw}`);
+  }
+
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  const year = Number(m[3]);
+
+  // Reject ambiguity and invalids
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid month: ${raw}`);
+  }
+  if (day < 1 || day > 31) {
+    throw new Error(`Invalid day: ${raw}`);
+  }
+
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+};
+
 const sanitizePrice = (val: any): string => {
   if (typeof val === 'number') return val.toFixed(2);
   if (typeof val !== 'string') return '';
@@ -40,7 +71,7 @@ const parseGeminiResponse = (text: string): ReceiptData => {
       supplier: parsed.supplier,
       totalAmount: sanitizePrice(parsed.totalAmount),
       taxAmount: sanitizePrice(parsed.taxAmount),
-      receiptDate: parsed.receiptDate || 'N/A',
+      receiptDate: normalizeDateStrict(parsed.receiptDate),
       cuInvoice: parsed.cuInvoice || 'N/A',
       kraPin: parsed.kraPin || 'N/A',
       invoiceNumber: parsed.invoiceNumber || 'N/A',
@@ -90,7 +121,7 @@ export const extractReceiptData = async (
       },
       receiptDate: { 
         type: "STRING",
-        description: "Date in MM/DD/YYYY or DD/MM/YYYY format" 
+        description: "Date in MM/DD/YYYY format" 
       },
       cuInvoice: { 
         type: "STRING",
@@ -390,3 +421,5 @@ export const generateSummary = async (receipts: ReceiptData[]): Promise<string> 
     return "Error generating spending summary";
   }
 };
+
+

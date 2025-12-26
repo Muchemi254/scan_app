@@ -3,22 +3,44 @@ import { utils, writeFile, type WorkBook, type WorkSheet } from 'xlsx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 
+const numericFields = new Set([
+  'Quantity',
+  'Price',
+  'Tax',
+  'Total',
+  'totalAmount',
+  'taxAmount'
+]);
+
 const sanitizeData = (data: any[]) => {
   return data.map(row => {
     const cleanedRow: any = {};
+
     for (const key in row) {
       const value = row[key];
-      if (typeof value === 'string') {
-        // Try to convert to number if it's numeric
-        const num = parseFloat(value);
-        cleanedRow[key] = isNaN(num) ? value.trim() : num;
-      } else {
-        cleanedRow[key] = value ?? '';
+
+      // Force dates as TEXT
+      if (dateFields.has(key)) {
+        cleanedRow[key] = value ? String(value) : '';
+        continue;
       }
+
+      // Force numeric fields
+      if (numericFields.has(key)) {
+        cleanedRow[key] = Number(value) || 0;
+        continue;
+      }
+
+      cleanedRow[key] = value ?? '';
     }
+
     return cleanedRow;
   });
 };
+const dateFields = new Set([
+  'receiptDate',
+]);
+
 
 export const exportToExcel = (data: any[], fileName: string) => {
   const sanitizedData = sanitizeData(data);
