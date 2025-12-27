@@ -1,77 +1,180 @@
-import { NavLink, useNavigate, Outlet } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { auth } from '../services/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { UserIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { logout } from '../services/firebase';
+import { 
+  Home, 
+  Camera, 
+  FileText, 
+  ClipboardCheck, 
+  Download, 
+  LogOut, 
+  Menu, 
+  X,
+  PlusCircle
+} from 'lucide-react';
 
 const Layout = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, user => {
-      setIsLoggedIn(!!user);
-      setUserEmail(user?.email || null);
-    });
-    return () => unsubscribe();
-  }, []);
-
   const handleLogout = async () => {
-    await signOut(auth);
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
-  const navLinkStyle = ({ isActive }: { isActive: boolean }) =>
-    `text-sm font-medium ${
-      isActive ? 'text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-700'
-    }`;
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/scanner', label: 'Scanner', icon: Camera },
+    { path: '/receipts', label: 'Receipts', icon: FileText },
+    { path: '/review', label: 'Review', icon: ClipboardCheck },
+    { path: '/post-receipt', label: 'Post', icon: PlusCircle },
+    { path: '/export', label: 'Export', icon: Download },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+      {/* Top Navigation Bar */}
+      <nav className="bg-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex space-x-8">
-              <NavLink to="/dashboard" className={navLinkStyle}>Dashboard</NavLink>
-              <NavLink to="/scanner" className={navLinkStyle}>Scan Receipts</NavLink>
-              <NavLink to="/post-receipt" className={navLinkStyle}>Post Reciept</NavLink>
-              <NavLink to="/receipts" className={navLinkStyle}>View Scanned Receipts</NavLink>
-              <NavLink to="/review" className={navLinkStyle}>Review</NavLink>
-              <NavLink to="/export" className={navLinkStyle}>Export</NavLink>
-              
-            </div>
-            <div className="flex items-center gap-4">
-              {isLoggedIn ? (
-                <>
-                  <div className="flex items-center gap-1 text-sm text-gray-700">
-                    <UserIcon className="h-5 w-5 text-gray-600" />
-                    {userEmail}
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center text-sm font-medium text-red-600 hover:text-red-800"
+          <div className="flex justify-between items-center h-16">
+            {/* Logo/Brand */}
+            <Link 
+              to="/dashboard" 
+              className="flex items-center space-x-2 text-xl font-bold text-blue-600"
+              onClick={closeMobileMenu}
+            >
+              <FileText className="h-6 w-6" />
+              <span className="hidden sm:inline">Receipt Manager</span>
+              <span className="sm:hidden">RM</span>
+            </Link>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                      isActive(item.path)
+                        ? 'bg-blue-100 text-blue-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
                   >
-                    <ArrowRightOnRectangleIcon className="h-5 w-5 mr-1" />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <NavLink
-                  to="/login"
-                  className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
-                >
-                  <ArrowRightOnRectangleIcon className="h-5 w-5 mr-1" />
-                  Login
-                </NavLink>
-              )}
+                    <Icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors ml-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
             </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={toggleMobileMenu}
+              className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Menu */}
+        <div
+          className={`md:hidden transition-all duration-300 ease-in-out overflow-hidden ${
+            mobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="px-4 pt-2 pb-4 space-y-1 border-t">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={closeMobileMenu}
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    isActive(item.path)
+                      ? 'bg-blue-100 text-blue-700 font-medium'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+            <button
+              onClick={() => {
+                closeMobileMenu();
+                handleLogout();
+              }}
+              className="flex items-center space-x-3 w-full px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-5 w-5" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
       </nav>
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+
+      {/* Main Content */}
+      <main className="w-full">
         <Outlet />
       </main>
+
+      {/* Bottom Navigation for Mobile (Optional) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
+        <div className="grid grid-cols-5 gap-1 px-2 py-2">
+          {navItems.slice(0, 5).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center justify-center py-2 rounded-lg transition-colors ${
+                  isActive(item.path)
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-xs mt-1">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Spacer for bottom nav on mobile */}
+      <div className="md:hidden h-20" />
     </div>
   );
 };
