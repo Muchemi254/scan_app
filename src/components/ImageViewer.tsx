@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string }) => {
   const [rotation, setRotation] = useState(0);
@@ -8,6 +8,82 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
   const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [displayUrl, setDisplayUrl] = useState<string>("");
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionError, setConversionError] = useState<string | null>(null);
+  
+  // Use ref to track if conversion is in progress for this URL
+  const conversionInProgress = useRef<string | null>(null);
+
+  // Detect if the image is HEIC/HEIF format
+  const isHEIC = imageUrl.toLowerCase().match(/\.(heic|heif)(\?|$|&)/);
+
+  useEffect(() => {
+    const loadImage = async () => {
+      // For non-HEIC images, display directly
+      if (!isHEIC) {
+        setDisplayUrl(imageUrl);
+        setIsConverting(false);
+        setConversionError(null);
+        return;
+      }
+
+      // If already converting this exact URL, skip
+      if (conversionInProgress.current === imageUrl) {
+        return;
+      }
+
+      // Mark this URL as being converted
+      conversionInProgress.current = imageUrl;
+      setIsConverting(true);
+      setConversionError(null);
+      setDisplayUrl("");
+
+      try {
+        console.log('Converting HEIC image...');
+        
+        const response = await fetch('/api/convert-heic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageUrl }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.details || `Server error: ${response.status}`);
+        }
+
+        // Get the converted image as blob
+        const blob = await response.blob();
+        const convertedUrl = URL.createObjectURL(blob);
+        
+        setDisplayUrl(convertedUrl);
+        
+        // Log cache status
+        const cacheStatus = response.headers.get('X-Cache');
+        console.log(`✓ HEIC converted (Cache: ${cacheStatus || 'UNKNOWN'})`);
+
+      } catch (error) {
+        console.error('HEIC conversion failed:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setConversionError(`Failed to convert HEIC image: ${errorMessage}`);
+      } finally {
+        setIsConverting(false);
+        conversionInProgress.current = null;
+      }
+    };
+
+    loadImage();
+
+    // Cleanup blob URLs when imageUrl changes
+    return () => {
+      if (displayUrl && displayUrl.startsWith('blob:') && imageUrl !== displayUrl) {
+        URL.revokeObjectURL(displayUrl);
+      }
+    };
+  }, [imageUrl]); // Only depend on imageUrl, not isHEIC or displayUrl
 
   const handleRotate = () => {
     setRotation(prev => (prev + 90) % 360);
@@ -36,9 +112,8 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
     window.open(imageUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Mouse drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom <= 1) return; // Only allow dragging when zoomed
+    if (zoom <= 1) return;
     setIsDragging(true);
     setDragStart({
       x: e.clientX - panX,
@@ -60,7 +135,6 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
     setIsDragging(false);
   };
 
-  // Touch drag handlers for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     if (zoom <= 1) return;
     const touch = e.touches[0];
@@ -73,7 +147,7 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || zoom <= 1) return;
-    e.preventDefault(); // Prevent scrolling
+    e.preventDefault();
     
     const touch = e.touches[0];
     const newPanX = touch.clientX - dragStart.x;
@@ -87,7 +161,6 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
     setIsDragging(false);
   };
 
-  // Reset pan when zoom changes to 1
   useEffect(() => {
     if (zoom === 1) {
       setPanX(0);
@@ -104,35 +177,40 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
       <div className="mb-3 flex flex-wrap gap-2">
         <button
           onClick={handleRotate}
-          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border disabled:opacity-50"
+          disabled={isConverting}
           title="Rotate 90°"
         >
           🔄
         </button>
         <button
           onClick={handleZoomIn}
-          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border disabled:opacity-50"
+          disabled={isConverting}
           title="Zoom In"
         >
           🔍+
         </button>
         <button
           onClick={handleZoomOut}
-          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border disabled:opacity-50"
+          disabled={isConverting}
           title="Zoom Out"
         >
           🔍-
         </button>
         <button
           onClick={handleReset}
-          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border disabled:opacity-50"
+          disabled={isConverting}
           title="Reset"
         >
           ↺
         </button>
         <button
           onClick={handleFullscreen}
-          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border disabled:opacity-50"
+          disabled={isConverting}
           title="Fullscreen"
         >
           ⛶
@@ -158,18 +236,46 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <img
-            src={imageUrl}
-            alt={altText}
-            className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
-            style={{ 
-              transform: imageTransform,
-              cursor: cursorStyle
-            }}
-            draggable={false}
-          />
+          {isConverting ? (
+            <div className="text-gray-500 text-sm flex flex-col items-center gap-3">
+              <div className="animate-spin text-3xl">⏳</div>
+              <div>Converting HEIC format...</div>
+            </div>
+          ) : conversionError ? (
+            <div className="text-center p-6 max-w-md">
+              <div className="text-4xl mb-3">⚠️</div>
+              <div className="text-sm text-red-600 mb-4 font-medium">
+                {conversionError}
+              </div>
+              <button
+                onClick={handleOpenInNewTab}
+                className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+              >
+                Open Original File
+              </button>
+            </div>
+          ) : displayUrl ? (
+            <img
+              src={displayUrl}
+              alt={altText}
+              className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
+              style={{ 
+                transform: imageTransform,
+                cursor: cursorStyle
+              }}
+              draggable={false}
+            />
+          ) : null}
         </div>
       </div>
+
+      {/* Format indicator - only show for successfully converted HEIC */}
+      {isHEIC && displayUrl && !conversionError && !isConverting && (
+        <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
+          <span>✓</span>
+          <span>HEIC format converted to JPEG</span>
+        </div>
+      )}
 
       {/* Zoom indicator */}
       {zoom !== 1 && (
@@ -194,7 +300,7 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
           <div className="relative max-w-full max-h-full p-4">
             <button
               onClick={() => setIsFullscreen(false)}
-              className="absolute top-2 right-2 text-white text-2xl hover:text-gray-300 z-10"
+              className="absolute top-2 right-2 text-white text-2xl hover:text-gray-300 z-10 bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center"
             >
               ×
             </button>
@@ -209,7 +315,7 @@ const ImageViewer = ({ imageUrl, altText }: { imageUrl: string; altText: string 
               onClick={(e) => e.stopPropagation()}
             >
               <img
-                src={imageUrl}
+                src={displayUrl}
                 alt={altText}
                 className="max-w-full max-h-full object-contain select-none"
                 style={{ 

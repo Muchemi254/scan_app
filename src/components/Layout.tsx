@@ -39,6 +39,7 @@ const Layout = () => {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
+    {path: '/api-dashboard', label: 'API Monitor', icon: ClipboardCheck },
     { path: '/scanner', label: 'Scanner', icon: Camera },
     { path: '/receipts', label: 'Receipts', icon: FileText },
     { path: '/review', label: 'Review', icon: ClipboardCheck },
